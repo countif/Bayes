@@ -7,21 +7,18 @@ class Probit():
 
         self.X = np.asarray(X)
         self.y = np.asarray(y)
-        self.sgm = sgm
+        self.sgm = float(sgm)
         self.lmbd = lmbd
         self.n_iter = n_iter
         self.X_shape = np.shape(self.X)
         self.N = self.X_shape[0]
         self.d = self.X_shape[1]
         self.w = np.zeros((self.d))
-        self.e_phi = np.zeros((self.N,self.d))
+        self.e_phi = np.zeros((self.N))
         self.logLikelihoods = []
         self.K = np.unique(self.y)
 
-    def _var(self,x,w):
-        x = x*-1
-        return (x.T.dot(w))/self.sgm
-
+    
     def fit(self):
     
         
@@ -31,18 +28,21 @@ class Probit():
                 
             for i in range(self.N):
                 
-                _varValue = self._var(self.X[i],self.w)
+                _xw = (self.X[i].T.dot(self.w))
+                _xwSgm = (-1*_xw)/self.sgm
                 
                 if self.y[i] == 1:
-                    self.e_phi[i] = self.X[i].T.dot(self.w) + (self.sgm * (norm.pdf(_varValue) / (1 - norm.cdf(_varValue))))
+                    self.e_phi[i] = _xw + (self.sgm * norm.pdf(_xwSgm)) / (1 - norm.cdf(_xwSgm))
                 
-                else:
-                    self.e_phi[i] = self.X[i].T.dot(self.w) + (self.sgm * (-norm.pdf(_varValue) / norm.cdf(_varValue)))
+                if self.y[i] == 0:
+                    self.e_phi[i] = _xw + (self.sgm * -1 * norm.pdf(_xwSgm)) / norm.cdf(_xwSgm)
                     
         
         def _mStep():
-            self.w = np.linalg.inv((self.lmbd + self.X.T.dot(self.X)/(self.sgm**2))).dot(np.sum((self.X * self.e_phi),axis=0)/(self.sgm**2))
-        
+            part1 = np.linalg.inv((self.lmbd + self.X.T.dot(self.X)/(self.sgm**2)))
+            part2 = np.sum(np.multiply(self.X.T,self.e_phi).T,axis=0)/(self.sgm**2)
+            
+            self.w = part2.dot(part1)
             
         def _logLikelihood():
             
@@ -52,38 +52,34 @@ class Probit():
             logLikelihood_4 = 0
             
             for i in range(self.N):
-                _varValue = self._var(self.X[i],self.w)
-                logLikelihood_3 += self.y[i]*np.log(norm.cdf(_varValue))
-                logLikelihood_4 += (1 - self.y[i])*np.log(1 - norm.cdf(_varValue))
+                _pxwSgm = (self.X[i].T.dot(self.w))/self.sgm
+                logLikelihood_3 += self.y[i]*np.log(norm.cdf(_pxwSgm))
+                logLikelihood_4 += (1 - self.y[i])*np.log(1 - norm.cdf(_pxwSgm))
             
             logLikelihood = logLikelihood_1 - logLikelihood_2 + logLikelihood_3 + logLikelihood_4
             
-            return logLikelihood
+            return float(logLikelihood)
 
             
         for t in range(self.n_iter):
             print t
             _eStep()
             _mStep()
-            #llh = _logLikelihood()
-            #print llh
-            #self.logLikelihoods.append(llh)
             
-
+            self.logLikelihoods.append(_logLikelihood())
+        
+        
     def predict_proba(self,Xtest):
         
         self.Xtest = np.asarray(Xtest)
         _probit = np.zeros((len(Xtest),len(self.K)))
         predict_proba = np.zeros((len(Xtest),len(self.K)))
         
-        def _probitDistribution(_varValue,y):
-            np.power(norm.cdf(_varValue),y) * np.power((1 - norm.cdf(_varValue)),(1-y))
         
         for i in range(len(self.Xtest)):
-            p_varValue = (self.Xtest[i].dot(self.w))/self.sgm
-            
+            _xwSgm = (self.Xtest[i].T.dot(self.w))/self.sgm
             for k in self.K:
-                _probit[i][k] = _probitDistribution(p_varValue,k)
+                _probit[i][k] = np.power(norm.cdf(_xwSgm),k) * np.power((1 - norm.cdf(_xwSgm)),1 - k)
 
             for k in self.K:
                 predict_proba[i][k] = _probit[i][k]/np.sum(_probit[i])    
