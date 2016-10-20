@@ -17,6 +17,7 @@ class Probit():
         self.e_phi = np.zeros((self.N))
         self.logLikelihoods = []
         self.K = np.unique(self.y)
+        self.W = []
 
     
     def fit(self):
@@ -43,6 +44,7 @@ class Probit():
             part2 = np.sum(np.multiply(self.X.T,self.e_phi).T,axis=0)/(self.sgm**2)
             
             self.w = part2.dot(part1)
+            self.W.append(self.w)
             
         def _logLikelihood():
             
