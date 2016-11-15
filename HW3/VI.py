@@ -33,7 +33,7 @@ class VI():
         self.b = np.full((self.d),b0)
         self.e = e0 + self.N/2
         self.f = f0
-        self.mu = np.zeros((1,self.d))
+        self.mu = np.zeros((self.d))
         self.sgm = np.identity((self.d))
     
         
@@ -41,17 +41,23 @@ class VI():
         
     def _updateLamdba(self):
         #look at mu.T if values don't work
-        self.f = self.f0 + (0.5 * np.sum(((self.y - self.X.dot(self.mu.T)) ** 2 + self.X.dot(self.sgm).dot(self.X.T))))
-
+        f_part1 = (self.y.T  - self.X.dot(self.mu)) **2
+        f_part2 = np.diag(self.X.dot(self.sgm).dot(self.X.T))
+        f_parts = np.sum(f_part1 + f_part2)
+        self.f = self.f0 + (0.5 * f_parts)
+        #print self.f
     def _updateAlpha(self):
-        self.b = self.b0 + (0.5 * np.diag((self.sgm + (self.mu.dot(self.mu.T)))))
-
+        mu = self.mu.reshape(self.d,1)
+        self.b = self.b0 + (0.5 * np.diag((self.sgm + (mu.dot(mu.T)))))
+        #print np.sum(self.b)
+        
+        
     def _updateW(self):
-        self.sgm = np.linalg.inv(np.diag((self.a/self.b)) + ((self.e/self.f) * self.X.T.dot(self.X)))
+        self.sgm = np.linalg.inv(np.diag(self.a/self.b) + ((self.e/self.f) * self.X.T.dot(self.X)))
         self.mu = self.sgm.dot((self.e/self.f) *(np.sum(np.multiply(self.y,self.X),axis=0)))
 
     def _calcViLikelihood(self):
-                                   
+        mu = self.mu.reshape(self.d,1)                           
     
         lambda_part1 = (self.e0 * np.log(self.f0) - gammaln(self.e0))
         lambda_part2 = -(self.e * np.log(self.f) - gammaln(self.e))
@@ -71,7 +77,7 @@ class VI():
         
         
         w_part1 = 0.5 * np.sum(digamma(self.a) - np.log(self.b))
-        w_part2 = -0.5 * np.sum(np.diag((self.sgm + (self.mu.T.dot(self.mu)))) * (self.a/self.b)) 
+        w_part2 = -0.5 * np.sum(np.diag((self.sgm + (mu.dot(mu.T)))) * (self.a/self.b)) 
         sign, logdet = np.linalg.slogdet(self.sgm)
         w_part3 = 0.5 * (sign * logdet) 
         w_part = w_part1 + w_part2 + w_part3  
@@ -79,7 +85,7 @@ class VI():
         
         y_part1 = self.N/2 * (digamma(self.e) - np.log(self.f)) 
         #fix this one if you find an error
-        y_part2 = -(self.f/(2*self.e) * np.sum(((self.y - self.X.dot(self.mu.T)) ** 2 + self.X.dot(self.sgm).dot(self.X.T))))
+        y_part2 = -(self.f/(2*self.e) * np.sum(((self.y - self.X.dot(self.mu)) ** 2 + self.X.dot(self.sgm).dot(self.X.T))))
         
         y_part = y_part1 + y_part2 
     
@@ -87,11 +93,14 @@ class VI():
     
     def iterate(self):
             for i in range(self.n_iter):
-        
+                #print "iter: ",i, "Mu:",np.sum(self.mu), "sigma:",np.sum(self.sgm)
+                
+               
                 self._updateLamdba()
                 #print self.f
                 self._updateAlpha()
                 #print self.b
                 self._updateW()
                 #print self.sgm
+                
                 self.ViLikelihoods.append(self._calcViLikelihood())
