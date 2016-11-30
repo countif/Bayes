@@ -22,6 +22,9 @@ class EM_GMM ():
         self.pi = self.pi/np.sum(self.pi)
         self.mu = np.random.normal(size=(self.K,self.d))
         self.sgm = np.random.uniform(size=(self.K,self.d,self.d))
+        for i in range(np.shape(self.sgm)[0]):
+            self.sgm[i] = self.sgm[i].dot(self.sgm[i].T)
+
         self.n = np.zeros((self.K))
         
     def fit(self):
@@ -36,7 +39,7 @@ class EM_GMM ():
                 for j in range(self.K):
                     numer = self.pi[j] * multivariate_normal.pdf(self.X[i],self.mu[j],self.sgm[j])
                     self.phi[i][j] = numer/denom                     
-        
+            print np.shape(self.sgm)
         def _mStep():
             
             self.n = np.sum(self.phi,axis=0)
@@ -47,9 +50,11 @@ class EM_GMM ():
                 self.mu[j] = (1/nj) * np.sum(np.multiply(self.phi[:,j].reshape(self.N,1),self.X),axis=0)
                 
                 X_mu = self.X - self.mu[j]
-                self.sgm = (1/nj) * np.sum(np.multiply(self.phi[:,j].reshape(self.N,1),X_mu.dot(X_mu.T)),axis=0) 
+                self.sgm[j] = (1/nj) * np.sum(np.multiply(self.phi[:,j].reshape(self.N,1),X_mu.dot(X_mu.T)),axis=0) 
                 
                 self.pi[j] = nj/np.sum(nj)
+            print np.shape(self.sgm),np.shape(self.mu),np.shape(self.pi),np.shape(self.phi)
+                
                 
         def _logLikelihood():
             log_likelihood = 0
