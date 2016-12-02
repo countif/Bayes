@@ -12,7 +12,7 @@ import pandas as pd
 
 X = np.loadtxt('data.txt',delimiter=',')
 
-k=10
+k=2
 model = EM_GMM(X,K=k,n_iter=100)
 model.fit()
 pd.Series(model.logLikelihoods).plot()

@@ -20,18 +20,20 @@ class EM_GMM ():
         self.pi = np.random.normal(size=(self.K))
         self.pi = self.pi/np.sum(self.pi)
         self.mu = np.random.uniform(size=(self.K,self.d))
-        self.sgm = np.random.uniform(size=(self.K,self.d,self.d))
+        self.sgm = np.zeros((self.K,self.d,self.d))
+        self.random_matrix = np.random.normal(size=(self.d,self.N))
+        
         for i in range(self.K):
-            self.sgm[i] = self.sgm[i].dot(self.sgm[i].T)
+            #print np.shape(self.random_matrix),np.shape(np.cov(self.random_matrix))
+            self.sgm[i] = np.cov(self.random_matrix)#self.sgm[i].dot(self.sgm[i].T)
 
         self.n = np.zeros((self.K))
         
     def fit(self):
-    
+        small = 10 ** -16
 
         def _eStep():
-            #print self.sgm
-            small = 10 ** -16
+           
             for i in range(self.N):
                 denom = 0
                 for k in range(self.K):
@@ -68,7 +70,10 @@ class EM_GMM ():
             for j in range(self.K):
                 #print self.mu[j]
                 #print self.sgm[j]
-                log_likelihood += np.sum(multivariate_normal.logpdf(self.X,self.mu[j],self.sgm[j] **2))
+                #log_likelihood += np.sum(multivariate_normal.logpdf(self.X,self.mu[j],self.sgm[j] **2))
+                print j
+                print multivariate_normal.pdf(self.X,self.mu[j],self.sgm[j] **2)
+                log_likelihood += np.sum(np.log((multivariate_normal.pdf(self.X,self.mu[j],self.sgm[j] **2))))
             
             return log_likelihood
             
