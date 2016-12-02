@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 """
 Created on Mon Nov 28 20:39:46 2016
-
 @author: lfawaz
 """
 import numpy as np
@@ -36,12 +35,12 @@ class EM_GMM ():
             for i in range(self.N):
                 denom = 0
                 for k in range(self.K):
-                    denom += self.pi[k] * multivariate_normal.pdf(self.X[i],self.mu[k],self.sgm[k])
+                    denom += self.pi[k] * multivariate_normal.pdf(self.X[i],self.mu[k],self.sgm[k] **2)
                     
                 for j in range(self.K):
-                    numer = self.pi[j] * multivariate_normal.pdf(self.X[i],self.mu[j],self.sgm[j])
+                    numer = self.pi[j] * multivariate_normal.pdf(self.X[i],self.mu[j],self.sgm[j] **2)
         
-                    self.phi[i][j] = (numer + small)/(denom + small)
+                    self.phi[i][j] = (numer - small)/(denom - small)
                     #print self.phi[i][j],multivariate_normal.pdf(self.X[i],self.mu[j],self.sgm[j])
                     
             #print np.shape(self.sgm)
@@ -69,7 +68,7 @@ class EM_GMM ():
             for j in range(self.K):
                 #print self.mu[j]
                 #print self.sgm[j]
-                log_likelihood += -1*np.sum(multivariate_normal.logpdf(self.X,self.mu[j],self.sgm[j]))
+                log_likelihood += np.sum(multivariate_normal.logpdf(self.X,self.mu[j],self.sgm[j] **2))
             
             return log_likelihood
             
@@ -82,4 +81,3 @@ class EM_GMM ():
             self.logLikelihoods.append(_logLikelihood())
         print np.shape(self.phi)
         
-    
