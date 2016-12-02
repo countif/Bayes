@@ -18,11 +18,11 @@ class EM_GMM ():
         self.logLikelihoods = []
         self.K = K
         self.phi = np.zeros((self.N,self.K))
-        self.pi = np.random.normal((1,self.K))
+        self.pi = np.random.normal(size=(self.K))
         self.pi = self.pi/np.sum(self.pi)
-        self.mu = np.random.normal(size=(self.K,self.d))
+        self.mu = np.random.uniform(size=(self.K,self.d))
         self.sgm = np.random.uniform(size=(self.K,self.d,self.d))
-        for i in range(np.shape(self.sgm)[0]):
+        for i in range(self.K):
             self.sgm[i] = self.sgm[i].dot(self.sgm[i].T)
 
         self.n = np.zeros((self.K))
@@ -31,6 +31,8 @@ class EM_GMM ():
     
 
         def _eStep():
+            #print self.sgm
+            small = 10 ** -16
             for i in range(self.N):
                 denom = 0
                 for k in range(self.K):
@@ -38,37 +40,46 @@ class EM_GMM ():
                     
                 for j in range(self.K):
                     numer = self.pi[j] * multivariate_normal.pdf(self.X[i],self.mu[j],self.sgm[j])
-                    self.phi[i][j] = numer/denom                     
-            print np.shape(self.sgm)
+        
+                    self.phi[i][j] = (numer + small)/(denom + small)
+                    #print self.phi[i][j],multivariate_normal.pdf(self.X[i],self.mu[j],self.sgm[j])
+                    
+            #print np.shape(self.sgm)
+            
         def _mStep():
             
             self.n = np.sum(self.phi,axis=0)
             
             for j in range(self.K):
+                
                 nj = self.n[j]
                 
                 self.mu[j] = (1/nj) * np.sum(np.multiply(self.phi[:,j].reshape(self.N,1),self.X),axis=0)
                 
-                X_mu = self.X - self.mu[j]
-                self.sgm[j] = (1/nj) * np.sum(np.multiply(self.phi[:,j].reshape(self.N,1),X_mu.dot(X_mu.T)),axis=0) 
+                phij_X_mu = np.multiply(self.phi[:,j].reshape(self.N,1),(self.X - self.mu[j]))
+                #print np.shape(self.sgm)
+                self.sgm[j] = (1/nj) * phij_X_mu.T.dot(phij_X_mu)
                 
                 self.pi[j] = nj/np.sum(nj)
-            print np.shape(self.sgm),np.shape(self.mu),np.shape(self.pi),np.shape(self.phi)
+                
                 
                 
         def _logLikelihood():
             log_likelihood = 0
             for j in range(self.K):
-                log_likelihood += np.sum(multivariate_normal.logpdf(self.X,self.mu[j],self.sgm[j]))
+                #print self.mu[j]
+                #print self.sgm[j]
+                log_likelihood += -1*np.sum(multivariate_normal.logpdf(self.X,self.mu[j],self.sgm[j]))
             
             return log_likelihood
             
         for t in range(self.n_iter):
-            print t
+            if(t%10==0):
+                print t
             _eStep()
             _mStep()
             
             self.logLikelihoods.append(_logLikelihood())
-        
+        print np.shape(self.phi)
         
     
