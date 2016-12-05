@@ -1,18 +1,29 @@
-#!/usr/bin/env python2
-# -*- coding: utf-8 -*-
-"""
-Created on Mon Nov 28 23:53:14 2016
 
-@author: lfawaz
-"""
+# coding: utf-8
+
+# In[ ]:
+
+
+
+
+# In[4]:
 
 import numpy as np
-from GMM import EM_GMM
-import pandas as pd
+from GMM import VI_GMM
+from scipy.special import digamma
 
 X = np.loadtxt('data.txt',delimiter=',')
 
-k=2
-model = EM_GMM(X,K=k,n_iter=100)
+k=10
+model = VI_GMM(X,K=k,n_iter=100)
 model.fit()
-pd.Series(model.logLikelihoods).plot()
+
+print model.phi
+#print "B_0",model.B_0
+
+#d = np.shape(X)[1]
+#A = np.cov(X.T) * (d/10.)
+
+#print A
+
+#print np.sum(digamma([1]))

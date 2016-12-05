@@ -5,7 +5,8 @@ Created on Mon Nov 28 20:39:46 2016
 @author: lfawaz
 """
 import numpy as np
-from scipy.stats import multivariate_normal
+from scipy.stats import multivariate_normal, wishart
+from scipy.special import digamma
 
 class EM_GMM ():
     def __init__ (self,X,K=2,n_iter=100):
@@ -17,35 +18,35 @@ class EM_GMM ():
         self.logLikelihoods = []
         self.K = K
         self.phi = np.zeros((self.N,self.K))
-        self.pi = np.random.normal(size=(self.K))
-        self.pi = self.pi/np.sum(self.pi)
-        self.mu = np.random.uniform(size=(self.K,self.d))
+        self.pi = np.absolute(np.random.normal(size=(self.K)))
+        self.mu = np.zeros((self.K,self.d))
         self.sgm = np.zeros((self.K,self.d,self.d))
         self.random_matrix = np.random.normal(size=(self.d,self.N))
         
         for i in range(self.K):
-            #print np.shape(self.random_matrix),np.shape(np.cov(self.random_matrix))
-            self.sgm[i] = np.cov(self.random_matrix)#self.sgm[i].dot(self.sgm[i].T)
+            self.sgm[i] = np.identity(self.d)
+            index = np.random.choice(np.arange(0,self.N))
+            self.mu[i] = self.X[index]
 
         self.n = np.zeros((self.K))
         
     def fit(self):
-        small = 10 ** -16
+        #small = 10 ** -16
 
         def _eStep():
            
             for i in range(self.N):
                 denom = 0
                 for k in range(self.K):
-                    denom += self.pi[k] * multivariate_normal.pdf(self.X[i],self.mu[k],self.sgm[k] **2)
+                    denom += self.pi[k] * multivariate_normal.pdf(self.X[i],self.mu[k],self.sgm[k])
                     
                 for j in range(self.K):
-                    numer = self.pi[j] * multivariate_normal.pdf(self.X[i],self.mu[j],self.sgm[j] **2)
-        
-                    self.phi[i][j] = (numer - small)/(denom - small)
-                    #print self.phi[i][j],multivariate_normal.pdf(self.X[i],self.mu[j],self.sgm[j])
+                    numer = self.pi[j] * multivariate_normal.pdf(self.X[i],self.mu[j],self.sgm[j])
+                    #print numer
+                    #print i, multivariate_normal.pdf(self.X[i],self.mu[j],self.sgm[j])
+                    self.phi[i][j] = numer/denom
+                    #print i,j,numer/denom
                     
-            #print np.shape(self.sgm)
             
         def _mStep():
             
@@ -53,36 +54,185 @@ class EM_GMM ():
             
             for j in range(self.K):
                 
-                nj = self.n[j]
+                nj = self.n[j] 
                 
-                self.mu[j] = (1/nj) * np.sum(np.multiply(self.phi[:,j].reshape(self.N,1),self.X),axis=0)
                 
-                phij_X_mu = np.multiply(self.phi[:,j].reshape(self.N,1),(self.X - self.mu[j]))
-                #print np.shape(self.sgm)
-                self.sgm[j] = (1/nj) * phij_X_mu.T.dot(phij_X_mu)
+                self.mu[j] = (1/nj) * np.sum(np.multiply(self.phi[:,j].reshape(self.N,1),self.X),axis=0) 
+                #print j,self.mu[j]
+                #print j,1/nj,"phi",np.sum(self.phi[:,j].reshape(self.N,1),axis=0),"X",np.sum(self.X,axis=0),"muj",self.mu[j]
                 
-                self.pi[j] = nj/np.sum(nj)
                 
+                X_mu = (self.X - self.mu[j]) #* self.phi[:,j].reshape(self.N,1)
+                self.sgm[j] = (1/nj) * (np.sum(self.phi[:,j])) * X_mu.T.dot(X_mu) #
+                #print j,self.sgm[j]
+                self.pi[j] = nj/np.sum(self.n)
+                #print j,self.pi[j]
                 
                 
         def _logLikelihood():
             log_likelihood = 0
-            for j in range(self.K):
-                #print self.mu[j]
-                #print self.sgm[j]
-                #log_likelihood += np.sum(multivariate_normal.logpdf(self.X,self.mu[j],self.sgm[j] **2))
-                print j
-                print multivariate_normal.pdf(self.X,self.mu[j],self.sgm[j] **2)
-                log_likelihood += np.sum(np.log((multivariate_normal.pdf(self.X,self.mu[j],self.sgm[j] **2))))
+            for i in range(self.N):
+                index = np.argmax(self.phi[i])
+                #print i,index
+                #print self.X[i],self.mu[index],self.sgm[index]
+                
+                log_likelihood += np.sum(multivariate_normal.logpdf(self.X[i],self.mu[index],self.sgm[index]))
+                
             
             return log_likelihood
             
         for t in range(self.n_iter):
             if(t%10==0):
                 print t
+                #print self.mu
+                #print self.pi
             _eStep()
+            #print self.n
             _mStep()
-            
+            #print self.sgm
             self.logLikelihoods.append(_logLikelihood())
-        print np.shape(self.phi)
+        
+        
+class VI_GMM ():
+    def __init__ (self,X,K=2,n_iter=100,alpha = 1, c =10):
+        self.X = np.asarray(X)
+        self.n_iter = n_iter
+        self.X_shape = np.shape(self.X)
+        self.N = self.X_shape[0]
+        self.d = self.X_shape[1]        
+        self.varObjective = []
+        self.K = K
+        self.phi = np.zeros((self.N,self.K))
+        
+        
+        self.I = np.identity(self.d)
+        self.c = c
+        self.mu_0 = np.zeros((1,self.d))
+        self.sgm_0 = (self.I*self.c)        
+        self.a_0 = self.d
+        self.A = np.cov(self.X.T)
+        self.B_0 = (self.d/10.) * self.A
+        
+        
+        self.alpha = np.full((self.K),1)
+        self.mu = np.zeros((self.K,self.d))
+        self.sgm = np.zeros((self.K,self.d,self.d))
+        self.a = np.zeros((self.K,1))
+        self.B = np.zeros((self.K,self.d,self.d))
+        
+        for i in range(self.K):
+            self.mu[i] = self.mu_0
+            self.sgm[i] = self.sgm_0
+            self.a[i] = self.a_0
+            self.B[i] = self.B_0
+        
+        
+    def fit(self):
+       
+        def _update_c():
+            X, alpha, mu, sgm, a, B = self.X, self.alpha, self.mu, self.sgm, self.a, self.B
+            
+            def _t1(j):
+                part1 = 0
+                for k in range(self.d):
+                    part1 += digamma(((1 - k) + a[j])/2)
+                    
+                sign, logdet = np.linalg.slogdet(B[j])
+                
+                t1 = np.sum(part1 - logdet)
+                
+                return t1
+                
+            
+            def _t2(j):
+                
+                X_mu = X - mu[j]
+                #print np.shape(X_mu),np.shape(a[j] * np.linalg.inv(B[j])),np.shape
+                t2 = np.diag(X_mu.dot(a[j] * np.linalg.inv(B[j])).dot(X_mu.T))
+                return t2
+                
+            def _t3(j):
+                
+                t3 = np.trace(a[j] * np.linalg.inv(B[j]) * sgm[j])
+                
+                return t3
+            
+            def _t4(j):
+                
+                
+                t4 = np.sum(digamma(alpha[j])/digamma(np.sum(alpha)))
+                
+                return t4
+            
+            def _t_function(j):
+                
+                return np.exp((0.5) * (_t1(j) - _t2(j) - _t3(j)) + _t4(j))
+            
+            phij = []
+            for j in range(self.K):
+                phij.append(_t_function(j))
+                
+            for k in range(len(phij)):
+                self.phi[:,k] = phij[k]/np.sum(phij,axis=0)
+                
+        def _update_n():
+            
+            self.n = np.sum(self.phi,axis=0)
+                    
+        def _update_alpha():
+            
+            self.alpha = self.a_0 + self.n
+            
+        def _update_muj():
+            c, I, n, a, B, X, phi = self.c, self.I, self.n, self.a, self.B, self.X , self.phi
+                
+            def _update_sgm(j):
+                
+                self.sgm[j] = np.linalg.inv(((I/c) + (n[j] * a[j]) + np.linalg.inv(B[j]))) 
+            
+            def _update_mu(j):
+                
+                sgm = self.sgm
+                phi_x = np.sum(np.multiply(phi[:,j].reshape(self.N,1),X),axis=0)
+                
+                self.mu[j] = sgm[j].dot(a[j] * np.linalg.inv(B[j]).dot(phi_x))
+            
+            for j in range(self.K):
+                _update_sgm(j)
+                _update_mu(j)
+                
+        def _update_lambda():
+            a_0 , n, B_0, phi, X, mu, sgm = self.a_0, self.n, self.B_0, self.phi, self.X, self.mu, self.sgm
+            
+            def _update_a(j):
+                self.a[j] = a_0 + n[j]
+            
+            def _update_B(j):
+                
+                X_mu = X - mu[j]
+                
+                self.B[j] = B_0 + np.sum(phi,axis=0)[j] * (X_mu.T.dot(X_mu) + sgm[j])
+                
+            for j in range(self.K):
+                
+                _update_a(j)
+                _update_B(j)
+                
+        def _varObjective():
+            varObjective = 0
+            
+            return varObjective
+              
+            
+            
+        for t in range(self.n_iter):
+            #if(t%10==0):
+            print t
+            _update_c()
+            _update_n()
+            _update_alpha()
+            _update_muj()
+            _update_lambda()
+            
+           # self.varObjective.append(_varObjective())
         
