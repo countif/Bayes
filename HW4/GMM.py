@@ -31,7 +31,7 @@ class EM_GMM ():
         self.n = np.zeros((self.K))
         
     def fit(self):
-        #small = 10 ** -16
+      
 
         def _eStep():
            
@@ -42,10 +42,7 @@ class EM_GMM ():
                     
                 for j in range(self.K):
                     numer = self.pi[j] * multivariate_normal.pdf(self.X[i],self.mu[j],self.sgm[j])
-                    #print numer
-                    #print i, multivariate_normal.pdf(self.X[i],self.mu[j],self.sgm[j])
                     self.phi[i][j] = numer/denom
-                    #print i,j,numer/denom
                     
             
         def _mStep():
@@ -58,23 +55,19 @@ class EM_GMM ():
                 
                 
                 self.mu[j] = (1/nj) * np.sum(np.multiply(self.phi[:,j].reshape(self.N,1),self.X),axis=0) 
-                #print j,self.mu[j]
-                #print j,1/nj,"phi",np.sum(self.phi[:,j].reshape(self.N,1),axis=0),"X",np.sum(self.X,axis=0),"muj",self.mu[j]
                 
                 
-                X_mu = (self.X - self.mu[j]) #* self.phi[:,j].reshape(self.N,1)
-                self.sgm[j] = (1/nj) * (np.sum(self.phi[:,j])) * X_mu.T.dot(X_mu) #
-                #print j,self.sgm[j]
+                X_mu_phi = np.multiply(self.phi[:,j].reshape(self.N,1),(self.X - self.mu[j])) 
+                self.sgm[j] = (1/nj) * X_mu_phi.T.dot(X_mu_phi) 
+                
                 self.pi[j] = nj/np.sum(self.n)
-                #print j,self.pi[j]
+            
                 
                 
         def _logLikelihood():
             log_likelihood = 0
             for i in range(self.N):
                 index = np.argmax(self.phi[i])
-                #print i,index
-                #print self.X[i],self.mu[index],self.sgm[index]
                 
                 log_likelihood += np.sum(multivariate_normal.logpdf(self.X[i],self.mu[index],self.sgm[index]))
                 
@@ -121,7 +114,8 @@ class VI_GMM ():
         self.B = np.zeros((self.K,self.d,self.d))
         
         for i in range(self.K):
-            self.mu[i] = self.mu_0
+            index = np.random.choice(np.arange(0,self.N))
+            self.mu[i] = self.X[index]
             self.sgm[i] = self.sgm_0
             self.a[i] = self.a_0
             self.B[i] = self.B_0
@@ -147,19 +141,17 @@ class VI_GMM ():
             def _t2(j):
                 
                 X_mu = X - mu[j]
-                #print np.shape(X_mu),np.shape(a[j] * np.linalg.inv(B[j])),np.shape
                 t2 = np.diag(X_mu.dot(a[j] * np.linalg.inv(B[j])).dot(X_mu.T))
                 return t2
                 
             def _t3(j):
                 
-                t3 = np.trace(a[j] * np.linalg.inv(B[j]) * sgm[j])
+                t3 = np.trace(a[j] * np.linalg.inv(B[j]).dot(sgm[j]))
                 
                 return t3
             
             def _t4(j):
-                
-                
+                                
                 t4 = np.sum(digamma(alpha[j])/digamma(np.sum(alpha)))
                 
                 return t4
@@ -170,8 +162,8 @@ class VI_GMM ():
             
             phij = []
             for j in range(self.K):
-                phij.append(_t_function(j))
-                
+                phij.append(_t_function(j)) 
+                    
             for k in range(len(phij)):
                 self.phi[:,k] = phij[k]/np.sum(phij,axis=0)
                 
@@ -182,7 +174,7 @@ class VI_GMM ():
         def _update_alpha():
             
             self.alpha = self.a_0 + self.n
-            
+           
         def _update_muj():
             c, I, n, a, B, X, phi = self.c, self.I, self.n, self.a, self.B, self.X , self.phi
                 
@@ -194,10 +186,10 @@ class VI_GMM ():
                 
                 sgm = self.sgm
                 phi_x = np.sum(np.multiply(phi[:,j].reshape(self.N,1),X),axis=0)
-                
                 self.mu[j] = sgm[j].dot(a[j] * np.linalg.inv(B[j]).dot(phi_x))
             
             for j in range(self.K):
+             
                 _update_sgm(j)
                 _update_mu(j)
                 
@@ -209,9 +201,9 @@ class VI_GMM ():
             
             def _update_B(j):
                 
-                X_mu = X - mu[j]
+                X_mu_phi = np.multiply(phi[:,j].reshape(self.N,1),(X - mu[j])) 
                 
-                self.B[j] = B_0 + np.sum(phi,axis=0)[j] * (X_mu.T.dot(X_mu) + sgm[j])
+                self.B[j] = B_0 + (X_mu_phi.T.dot(X_mu_phi) + sgm[j]) #np.sum(phi,axis=0)[j] *
                 
             for j in range(self.K):
                 
@@ -226,8 +218,8 @@ class VI_GMM ():
             
             
         for t in range(self.n_iter):
-            #if(t%10==0):
-            print t
+            if(t%10==0):
+                print t
             _update_c()
             _update_n()
             _update_alpha()
