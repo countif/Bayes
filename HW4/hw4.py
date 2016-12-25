@@ -9,14 +9,14 @@
 # In[4]:
 
 import numpy as np
-from GMM import VI_GMM
-from scipy.special import digamma
+from GMM import GS_GMM
 
 X = np.loadtxt('data.txt',delimiter=',')
 
-k=25
-model = VI_GMM(X,K=k,n_iter=100)
-model.fit()
+model_EM_GMM = EM_GMM(X,k=2,n_iter=10)
+model_VI_GMM = VI_GMM(X,k=2,n_iter=10)
+model_GS_GMM = GS_GMM(X,n_iter=500)
 
-cluster = [np.argmax(phi) for phi in model.phi]
-print cluster
+model_EM_GMM.fit()
+model_VI_GMM.fit()
+model_GS_GMM.fit()
